@@ -139,6 +139,74 @@ button {
   transform: none;
 }
 
+/* ===== カットイン ===== */
+.cutin-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.cutin-overlay.show {
+  opacity: 1;
+}
+.cutin-overlay.hide {
+  opacity: 0;
+}
+.cutin {
+  width: 100%;
+  text-align: center;
+  padding: 22px 16px;
+  transform: translateX(-40px) skewX(-6deg);
+  animation: cutin-slide 0.45s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+}
+.cutin-turn {
+  background: linear-gradient(100deg, rgba(37, 99, 235, 0) 0%, rgba(37, 99, 235, 0.95) 18%, rgba(37, 99, 235, 0.95) 82%, rgba(37, 99, 235, 0) 100%);
+}
+.cutin-event {
+  background: linear-gradient(100deg, rgba(109, 40, 217, 0) 0%, rgba(109, 40, 217, 0.95) 18%, rgba(109, 40, 217, 0.95) 82%, rgba(109, 40, 217, 0) 100%);
+}
+.cutin-title {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.cutin-sub {
+  font-size: 13px;
+  color: #e3e9f5;
+  margin-top: 4px;
+}
+@keyframes cutin-slide {
+  from {
+    transform: translateX(-60px) skewX(-6deg);
+  }
+  to {
+    transform: translateX(0) skewX(-6deg);
+  }
+}
+
+/* ===== 配札アニメーション ===== */
+.card-tile.deal-in {
+  opacity: 0;
+  animation: deal-in 0.4s ease-out forwards;
+}
+@keyframes deal-in {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* ===== ボトムシート ===== */
 .sheet-backdrop {
   position: fixed;
@@ -194,16 +262,35 @@ button {
   flex-direction: column;
   gap: 12px;
 }
-.name-field {
+.name-card {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 8px;
-  font-size: 14px;
-  color: #9fb0c9;
+  background: #1c2942;
+  border: 2px solid #2563eb;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 0 16px rgba(37, 99, 235, 0.25);
 }
-.name-field input {
+.name-avatar {
+  font-size: 30px;
+}
+.name-card-main {
   flex: 1;
+}
+.name-card-label {
+  display: block;
+  font-size: 12px;
+  color: #9fb0c9;
+  margin-bottom: 4px;
+}
+.name-input {
+  font-size: 18px;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+.name-edit-icon {
+  font-size: 18px;
 }
 .howto h2 {
   margin-top: 0;
@@ -328,6 +415,36 @@ button {
   letter-spacing: 8px;
   text-transform: uppercase;
 }
+.member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #16223a;
+  border: 1px solid #2a3854;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 14px;
+}
+.member-badge {
+  font-size: 16px;
+}
+.member-role {
+  margin-left: auto;
+  font-size: 12px;
+  color: #9fb0c9;
+}
+.member-role.picked {
+  color: #7fd18a;
+  font-weight: 700;
+}
+.lobby-share {
+  margin-top: 10px;
+}
 
 /* ===== ゲーム画面 ===== */
 .game-screen {
@@ -371,6 +488,40 @@ button {
   border-radius: 10px;
   padding: 6px 10px;
   font-size: 13px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.chip-info {
+  margin-left: auto;
+  color: #5c7194;
+  font-size: 13px;
+}
+.role-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.role-sheet .role-line {
+  font-size: 14px;
+  margin: 10px 0 4px;
+}
+.role-sheet .skill-uses {
+  color: #f5b942;
+  font-weight: 700;
+}
+.role-sheet-stats {
+  display: flex;
+  gap: 14px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #2a3854;
+  font-size: 14px;
+  color: #cdd8ea;
 }
 .player-chip.turn {
   border-color: #f5b942;

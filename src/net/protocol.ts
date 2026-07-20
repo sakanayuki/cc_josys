@@ -1,16 +1,19 @@
 import type { Action, GameState, MatchConfig, RoleId } from "../core/types";
 
 /** メッセージ互換性の版数。ゲームルールや状態形式を変えたら上げる */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export type Msg =
   | { t: "hello"; v: number; name: string; host: boolean }
   | { t: "full" }
-  | { t: "lobby"; roles: (RoleId | null)[]; ready: boolean[] }
+  // ホスト→各ゲスト: ロビー状態(namesとrolesは手番順、yourIndexは宛先ゲストの席)
+  | { t: "lobby"; names: string[]; roles: (RoleId | null)[]; yourIndex: number }
   | { t: "pickRole"; role: RoleId }
-  | { t: "start"; config: MatchConfig }
+  | { t: "start"; config: MatchConfig; yourIndex: number }
   | { t: "action"; a: Action }
   | { t: "state"; ver: number; s: GameState }
+  // ホスト→ゲスト: メンバー切断等で対戦を中断する
+  | { t: "abort" }
   | { t: "rematch"; accept?: boolean };
 
 const MSG_TYPES = new Set([
@@ -21,6 +24,7 @@ const MSG_TYPES = new Set([
   "start",
   "action",
   "state",
+  "abort",
   "rematch",
 ]);
 

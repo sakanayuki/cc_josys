@@ -1,7 +1,7 @@
 import { ROLES } from "../../core/cards";
 import type { MatchConfig, NpcLevel, RoleId } from "../../core/types";
 import { LocalSession } from "../../controller/local";
-import { GuestSession, HostSession, PvpLink } from "../../controller/p2p";
+import { GuestSession, HostSession, MAX_GUESTS, PvpLink } from "../../controller/p2p";
 import { PROTOCOL_VERSION, type Msg } from "../../net/protocol";
 import { isValidRoomId, makeRoomId, normalizeRoomId } from "../../net/room";
 import { copyText, h, shareText, toast } from "../dom";
@@ -215,16 +215,24 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
     show(gameScreen(session));
   }
 
-  // ---------------- PvP ----------------
+  // ---------------- PvP(最大4人) ----------------
 
   type PvpView =
     | { step: "idle" }
     | { step: "hosting"; waitingLong: boolean }
     | { step: "join-input" }
     | { step: "connecting" }
-    | { step: "lobby"; roles: (RoleId | null)[] };
+    | { step: "lobby" };
 
   let pvp: PvpView = { step: "idle" };
+  /** ホスト: 参加ゲスト(参加順=席順。players[1..]に対応) */
+  let guestIds: string[] = [];
+  /** ロビーの席ごとの役割(席0=ホスト)。ゲストはlobbyメッセージで受信 */
+  let roles: (RoleId | null)[] = [null, null, null, null];
+  /** ロビーの席ごとの名前 */
+  let names: string[] = [];
+  /** ゲスト: 自分の席番号(lobby受信で確定) */
+  let myIndex = -1;
 
   function setPvp(v: PvpView): void {
     pvp = v;
@@ -242,20 +250,33 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
     timeoutHandle = null;
     link?.close();
     link = null;
+    guestIds = [];
+    roles = [null, null, null, null];
+    names = [];
+    myIndex = -1;
     setPvp({ step: "idle" });
   }
 
   function attachHandlers(l: PvpLink): void {
-    l.onPeerJoin = () => {
-      // helloはPvpLinkが自動送信。相手のhello受信で確定する
-    };
-    l.onPeerLeave = () => {
+    l.onPeerLeave = (peerId) => {
       if (started) return;
       if (l.isHost) {
-        toast("相手が退出しました");
-        setPvp({ step: "hosting", waitingLong: false });
+        const seat = guestIds.indexOf(peerId);
+        if (seat < 0) return;
+        toast(`${names[seat + 1] ?? "相手"}が退出しました`);
+        guestIds.splice(seat, 1);
+        roles.splice(seat + 1, 1);
+        roles.push(null);
+        if (guestIds.length === 0) {
+          setPvp({ step: "hosting", waitingLong: false });
+        } else {
+          broadcastLobby();
+          render();
+        }
       } else {
-        resetPvp("接続が切れました");
+        if (peerId === l.hostPeerId() || l.hostPeerId() === null) {
+          resetPvp("ホストとの接続が切れました");
+        }
       }
     };
     l.handler = (msg: Msg, from: string) => handleLobbyMsg(l, msg, from);
@@ -263,69 +284,77 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
 
   function handleLobbyMsg(l: PvpLink, msg: Msg, from: string): void {
     if (msg.t === "hello") {
-      if (l.peerId !== null && from !== l.peerId) {
-        l.room.send({ t: "full" }, from);
-        return;
-      }
       if (msg.v !== PROTOCOL_VERSION) {
-        l.room.send({ t: "full" }, from);
-        resetPvp("相手とアプリのバージョンが違います。両方とも再読み込みしてください");
+        if (l.isHost) l.sendTo({ t: "full" }, from);
+        else resetPvp("相手とアプリのバージョンが違います。両方とも再読み込みしてください");
         return;
       }
-      if (msg.host === l.isHost) {
-        resetPvp(
-          l.isHost
-            ? "相手も部屋を作っています。どちらかが「部屋に入る」でIDを入力してください"
-            : "その部屋にはホストがいません。IDを確認してください",
-        );
-        return;
-      }
-      if (l.peerId === null) {
-        l.peerId = from;
-        l.peerName = msg.name || "相手";
-        l.sendHello(from); // 相互に確実にhelloが渡るよう返信
+      if (l.isHost) {
+        if (msg.host) {
+          resetPvp("同じIDで別の部屋が作られています。部屋を作り直してください");
+          return;
+        }
+        if (guestIds.includes(from)) return;
+        if (guestIds.length >= MAX_GUESTS) {
+          l.sendTo({ t: "full" }, from);
+          return;
+        }
+        guestIds.push(from);
         if (timeoutHandle !== null) clearTimeout(timeoutHandle);
-        setPvp({ step: "lobby", roles: [null, null] });
-        if (l.isHost) broadcastLobby();
+        if (pvp.step !== "lobby") setPvp({ step: "lobby" });
+        broadcastLobby();
+        render();
+      } else {
+        // ゲスト: ホストのhelloで接続確定。他ゲストのhelloは無視
+        if (msg.host && pvp.step === "connecting") {
+          if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+          setPvp({ step: "lobby" });
+        }
       }
       return;
     }
     if (msg.t === "full") {
-      resetPvp("その部屋は満室です");
+      resetPvp("その部屋は満室です(最大4人)");
       return;
     }
     if (pvp.step !== "lobby") return;
 
     if (msg.t === "pickRole" && l.isHost) {
-      if (pvp.roles[0] !== msg.role) {
-        pvp.roles[1] = msg.role;
+      const seat = guestIds.indexOf(from) + 1;
+      if (seat > 0 && !roles.includes(msg.role)) {
+        roles[seat] = msg.role;
       }
       broadcastLobby();
       render();
       return;
     }
-    if (msg.t === "lobby" && !l.isHost) {
-      pvp.roles = msg.roles.slice();
+    if (msg.t === "lobby" && !l.isHost && from === l.hostPeerId()) {
+      names = msg.names.slice();
+      roles = msg.roles.slice();
+      myIndex = msg.yourIndex;
       render();
       return;
     }
-    if (msg.t === "start" && !l.isHost) {
-      startAsGuest(l, msg.config);
+    if (msg.t === "start" && !l.isHost && from === l.hostPeerId()) {
+      startAsGuest(l, msg.config, msg.yourIndex);
     }
   }
 
   function broadcastLobby(): void {
-    if (pvp.step !== "lobby" || !link) return;
-    link.send({
-      t: "lobby",
-      roles: pvp.roles,
-      ready: pvp.roles.map((r) => r !== null),
+    if (!link?.isHost) return;
+    names = [link.myName, ...guestIds.map((id) => link!.peerName(id))];
+    guestIds.forEach((id, i) => {
+      link!.sendTo(
+        { t: "lobby", names, roles: roles.slice(0, names.length), yourIndex: i + 1 },
+        id,
+      );
     });
   }
 
   function createRoom(): void {
     const l = new PvpLink(makeRoomId(), true, getPlayerName());
     link = l;
+    names = [l.myName];
     attachHandlers(l);
     setPvp({ step: "hosting", waitingLong: false });
     armTimeout(90_000, () => {
@@ -345,28 +374,152 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
     });
   }
 
+  function canStart(): boolean {
+    const count = 1 + guestIds.length;
+    if (count < 2) return false;
+    return roles.slice(0, count).every((r) => r !== null);
+  }
+
   function startAsHost(): void {
-    if (pvp.step !== "lobby" || !link) return;
-    const [hostRole, guestRole] = pvp.roles;
-    if (!hostRole || !guestRole) return;
+    if (pvp.step !== "lobby" || !link || !canStart()) return;
+    const count = 1 + guestIds.length;
     const config: MatchConfig = {
       seed: newSeed(),
-      players: [
-        { name: link.myName, kind: "human", role: hostRole },
-        { name: link.peerName, kind: "remote", role: guestRole },
-      ],
+      players: Array.from({ length: count }, (_, i) => ({
+        name: names[i],
+        kind: i === 0 ? ("human" as const) : ("remote" as const),
+        role: roles[i]!,
+      })),
     };
-    link.send({ t: "start", config });
+    guestIds.forEach((id, i) => {
+      link!.sendTo({ t: "start", config, yourIndex: i + 1 }, id);
+    });
     started = true;
-    const session = new HostSession(link, config);
+    const session = new HostSession(link, config, guestIds.slice());
     show(gameScreen(session));
   }
 
-  function startAsGuest(l: PvpLink, config: MatchConfig): void {
-    if (config.players.length !== 2) return;
+  function startAsGuest(l: PvpLink, config: MatchConfig, yourIndex: number): void {
+    if (config.players.length < 2 || config.players.length > 4) return;
+    if (yourIndex < 1 || yourIndex >= config.players.length) return;
     started = true;
-    const session = new GuestSession(l, config);
+    const session = new GuestSession(l, config, yourIndex);
     show(gameScreen(session));
+  }
+
+  function renderRoomIdShare(id: string): HTMLElement {
+    return h(
+      "div",
+      null,
+      h("div", { class: "room-id" }, ...[...id].map((c) => h("span", null, c))),
+      h(
+        "div",
+        { class: "btn-row" },
+        h("button", { class: "btn", type: "button", onClick: () => copyText(id) }, "コピー"),
+        h(
+          "button",
+          {
+            class: "btn",
+            type: "button",
+            onClick: () => shareText(`「情シス、出動。」で対戦しよう! ルームID: ${id}\n${location.href}`),
+          },
+          "共有",
+        ),
+      ),
+    );
+  }
+
+  function renderLobby(l: PvpLink): HTMLElement {
+    const isHost = l.isHost;
+    const mySeat = isHost ? 0 : myIndex;
+    const count = names.length;
+    const capacityLeft = 4 - count;
+
+    const memberList = h(
+      "div",
+      { class: "member-list" },
+      names.map((name, i) => {
+        const role = roles[i] ? ROLES.find((r) => r.id === roles[i]) : null;
+        return h(
+          "div",
+          { class: "member-row" },
+          h("span", { class: "member-badge" }, i === 0 ? "👑" : "🧑"),
+          h("span", { class: "p-name" }, `${name}${i === mySeat ? "(あなた)" : ""}`),
+          h(
+            "span",
+            { class: `member-role${role ? " picked" : ""}` },
+            role ? role.name.split("(")[0] : "役割を選択中…",
+          ),
+        );
+      }),
+    );
+
+    return h(
+      "div",
+      null,
+      h("h2", { class: "section-title" }, `メンバー(${count}/4人)`),
+      memberList,
+      isHost && capacityLeft > 0
+        ? h(
+            "div",
+            { class: "lobby-share" },
+            h("p", { class: "hint" }, `あと${capacityLeft}人入れます。ルームIDを伝えれば途中参加できます`),
+            renderRoomIdShare(l.roomId),
+          )
+        : null,
+      h("h2", { class: "section-title" }, "じぶんの役割"),
+      h(
+        "div",
+        { class: "role-grid" },
+        ROLES.map((r) => {
+          const takenBy = roles.findIndex((x) => x === r.id);
+          const mine = takenBy === mySeat && mySeat >= 0;
+          const takenByOther = takenBy >= 0 && !mine;
+          return h(
+            "button",
+            {
+              class: `role-btn${mine ? " active" : ""}${takenByOther ? " taken" : ""}`,
+              type: "button",
+              disabled: takenByOther,
+              onClick: () => {
+                if (pvp.step !== "lobby" || !link) return;
+                if (isHost) {
+                  roles[0] = r.id;
+                  broadcastLobby();
+                  render();
+                } else {
+                  const hostId = link.hostPeerId();
+                  if (hostId) link.sendTo({ t: "pickRole", role: r.id }, hostId);
+                }
+              },
+            },
+            h("span", { class: "role-name" }, r.name),
+            h("span", { class: "role-desc" }, `${r.skillName}: ${r.skillDescription}`),
+            takenByOther ? h("span", { class: "role-taken" }, `${names[takenBy]}が選択`) : null,
+          );
+        }),
+      ),
+      isHost
+        ? h(
+            "button",
+            {
+              class: "btn btn-primary btn-wide",
+              type: "button",
+              disabled: !canStart(),
+              onClick: startAsHost,
+            },
+            canStart()
+              ? `対戦開始(${count}人)`
+              : count < 2
+                ? "相手の入室を待っています…"
+                : "全員が役割を選ぶと開始できます",
+          )
+        : h(
+            "p",
+            { class: "hint" },
+            canStart() ? "ホストの開始を待っています…" : "全員が役割を選ぶと開始できます",
+          ),
+    );
   }
 
   function renderPvp(): HTMLElement {
@@ -374,7 +527,7 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
       return h(
         "div",
         null,
-        h("p", { class: "hint" }, "ルームIDを発行して相手に伝えるだけでマッチングできます。通信はP2P(WebRTC)で行われ、サーバーには保存されません。"),
+        h("p", { class: "hint" }, "ルームIDを発行して相手に伝えるだけでマッチングできます(最大4人)。通信はP2P(WebRTC)で行われ、サーバーには保存されません。"),
         h(
           "button",
           { class: "btn btn-primary btn-wide", type: "button", onClick: createRoom },
@@ -393,32 +546,17 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
     }
 
     if (pvp.step === "hosting") {
-      const id = link!.roomId;
       return h(
         "div",
         null,
         h("h2", { class: "section-title" }, "あなたのルームID"),
-        h("div", { class: "room-id" }, ...[...id].map((c) => h("span", null, c))),
-        h(
-          "div",
-          { class: "btn-row" },
-          h("button", { class: "btn", type: "button", onClick: () => copyText(id) }, "コピー"),
-          h(
-            "button",
-            {
-              class: "btn",
-              type: "button",
-              onClick: () => shareText(`「情シス、出動。」で対戦しよう! ルームID: ${id}\n${location.href}`),
-            },
-            "共有",
-          ),
-        ),
+        renderRoomIdShare(link!.roomId),
         h(
           "p",
           { class: "hint" },
           pvp.waitingLong
             ? "まだ相手が来ません。IDが正しく伝わっているか確認してください。"
-            : "このIDを相手に伝えて、入室を待っています…",
+            : "このIDを相手(最大3人)に伝えて、入室を待っています…",
         ),
         h("div", { class: "spinner" }),
         h(
@@ -481,60 +619,7 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
       );
     }
 
-    // lobby
-    const myIdx = link!.isHost ? 0 : 1;
-    const peerIdx = 1 - myIdx;
-    const roles = pvp.roles;
-    return h(
-      "div",
-      null,
-      h("p", { class: "hint" }, `${link!.peerName} と接続しました。役割を選んでください。`),
-      h(
-        "div",
-        { class: "role-grid" },
-        ROLES.map((r) => {
-          const takenByPeer = roles[peerIdx] === r.id;
-          const mine = roles[myIdx] === r.id;
-          return h(
-            "button",
-            {
-              class: `role-btn${mine ? " active" : ""}${takenByPeer ? " taken" : ""}`,
-              type: "button",
-              disabled: takenByPeer,
-              onClick: () => {
-                if (pvp.step !== "lobby" || !link) return;
-                pvp.roles[myIdx] = r.id;
-                if (link.isHost) {
-                  broadcastLobby();
-                } else {
-                  link.send({ t: "pickRole", role: r.id });
-                }
-                render();
-              },
-            },
-            h("span", { class: "role-name" }, r.name),
-            h("span", { class: "role-desc" }, `${r.skillName}: ${r.skillDescription}`),
-            takenByPeer ? h("span", { class: "role-taken" }, `${link!.peerName}が選択`) : null,
-          );
-        }),
-      ),
-      link!.isHost
-        ? h(
-            "button",
-            {
-              class: "btn btn-primary btn-wide",
-              type: "button",
-              disabled: !(roles[0] && roles[1]),
-              onClick: startAsHost,
-            },
-            roles[0] && roles[1] ? "対戦開始" : "ふたりとも役割を選ぶと開始できます",
-          )
-        : h(
-            "p",
-            { class: "hint" },
-            roles[0] && roles[1] ? "ホストの開始を待っています…" : "ふたりとも役割を選ぶと開始できます",
-          ),
-    );
+    return renderLobby(link!);
   }
 
   function render(): void {

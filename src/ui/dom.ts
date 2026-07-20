@@ -45,6 +45,48 @@ function appendChildren(el: HTMLElement, children: Child[]): void {
 
 let toastBox: HTMLElement | null = null;
 
+// ---- カットイン(手番・イベント通知) ----
+
+interface CutInRequest {
+  title: string;
+  sub?: string;
+  variant: "turn" | "event";
+}
+
+const cutInQueue: CutInRequest[] = [];
+let cutInActive = false;
+
+/** 画面中央に大きな帯で通知を出す。連続要求はキューで順番に表示する */
+export function cutIn(title: string, sub?: string, variant: "turn" | "event" = "turn"): void {
+  cutInQueue.push({ title, sub, variant });
+  if (!cutInActive) drainCutIns();
+}
+
+function drainCutIns(): void {
+  const req = cutInQueue.shift();
+  if (!req) {
+    cutInActive = false;
+    return;
+  }
+  cutInActive = true;
+  const band = h(
+    "div",
+    { class: `cutin cutin-${req.variant}` },
+    h("div", { class: "cutin-title" }, req.title),
+    req.sub ? h("div", { class: "cutin-sub" }, req.sub) : null,
+  );
+  const overlay = h("div", { class: "cutin-overlay" }, band);
+  document.body.append(overlay);
+  requestAnimationFrame(() => overlay.classList.add("show"));
+  setTimeout(() => {
+    overlay.classList.add("hide");
+    setTimeout(() => {
+      overlay.remove();
+      drainCutIns();
+    }, 250);
+  }, req.variant === "event" ? 2000 : 1300);
+}
+
 /** 画面上部に一時通知を出す */
 export function toast(message: string, ms = 2600): void {
   if (!toastBox || !toastBox.isConnected) {

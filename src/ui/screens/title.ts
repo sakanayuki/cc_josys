@@ -10,12 +10,13 @@ export function getPlayerName(): string {
 
 export function titleScreen(): HTMLElement {
   const nameInput = h("input", {
-    class: "text-input",
+    class: "text-input name-input",
+    id: "player-name",
     type: "text",
     maxlength: "10",
-    placeholder: "あなた",
+    placeholder: "タップして入力",
     value: localStorage.getItem(NAME_KEY) ?? "",
-    onChange: () => {
+    onInput: () => {
       localStorage.setItem(NAME_KEY, nameInput.value.trim());
     },
   }) as HTMLInputElement;
@@ -32,6 +33,18 @@ export function titleScreen(): HTMLElement {
     ),
     h(
       "div",
+      { class: "name-card" },
+      h("span", { class: "name-avatar" }, "🧑‍💻"),
+      h(
+        "div",
+        { class: "name-card-main" },
+        h("label", { class: "name-card-label", for: "player-name" }, "あなたの名前(対戦相手に表示されます)"),
+        nameInput,
+      ),
+      h("span", { class: "name-edit-icon" }, "✏️"),
+    ),
+    h(
+      "div",
       { class: "title-menu" },
       h(
         "button",
@@ -41,15 +54,9 @@ export function titleScreen(): HTMLElement {
       h(
         "button",
         { class: "btn btn-primary", type: "button", onClick: () => show(matchingScreen("pvp")) },
-        "ふたりで遊ぶ(P2P対戦)",
+        "みんなで遊ぶ(P2P対戦・最大4人)",
       ),
       h("button", { class: "btn", type: "button", onClick: showHowTo }, "あそびかた"),
-      h(
-        "label",
-        { class: "name-field" },
-        h("span", null, "プレイヤー名"),
-        nameInput,
-      ),
     ),
   );
 }

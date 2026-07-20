@@ -67,49 +67,63 @@ export function resultScreen(
       );
     } else if (session.kind === "host") {
       const host = session as HostSession;
-      host.onRematchRequest = () => toast(`${host.link.peerName}が再戦を希望しています!`);
-      buttons.push(
-        h(
-          "button",
-          {
-            class: "btn btn-primary btn-wide",
-            type: "button",
-            onClick: () => {
-              const config: MatchConfig = { ...session.config, seed: newSeed() };
-              host.link.send({ t: "start", config });
-              session.dispose();
-              const next = new HostSession(host.link, config);
-              void import("./game").then(({ gameScreen }) => show(gameScreen(next)));
+      host.onRematchRequest = (from) =>
+        toast(`${host.link.peerName(from)}が再戦を希望しています!`);
+      if (host.allGuestsConnected()) {
+        buttons.push(
+          h(
+            "button",
+            {
+              class: "btn btn-primary btn-wide",
+              type: "button",
+              onClick: () => {
+                if (!host.allGuestsConnected()) {
+                  toast("退出したメンバーがいるため再戦できません");
+                  return;
+                }
+                const config: MatchConfig = { ...session.config, seed: newSeed() };
+                host.guestOrder.forEach((id, i) => {
+                  host.link.sendTo({ t: "start", config, yourIndex: i + 1 }, id);
+                });
+                session.dispose();
+                const next = new HostSession(host.link, config, host.guestOrder.slice());
+                void import("./game").then(({ gameScreen }) => show(gameScreen(next)));
+              },
             },
-          },
-          "もう一度(再戦)",
-        ),
-      );
+            "もう一度(再戦)",
+          ),
+        );
+      }
     } else if (session.kind === "guest") {
       const guest = session as GuestSession;
+      const hostId = guest.link.hostPeerId();
       // ホストからのstartを待ち受けて自動で再戦に入る
-      guest.link.handler = (msg) => {
-        if (msg.t === "start") {
+      guest.link.handler = (msg, from) => {
+        if (msg.t === "start" && from === hostId) {
           session.dispose();
-          const next = new GuestSession(guest.link, msg.config);
+          const next = new GuestSession(guest.link, msg.config, msg.yourIndex);
           void import("./game").then(({ gameScreen }) => show(gameScreen(next)));
         }
       };
-      guest.link.onPeerLeave = () => toast("相手が退出しました");
-      buttons.push(
-        h(
-          "button",
-          {
-            class: "btn btn-primary btn-wide",
-            type: "button",
-            onClick: () => {
-              guest.link.send({ t: "rematch" });
-              toast("再戦をリクエストしました。ホストの開始を待っています…");
+      guest.link.onPeerLeave = (peerId) => {
+        if (peerId === hostId) toast("ホストが退出しました");
+      };
+      if (hostId) {
+        buttons.push(
+          h(
+            "button",
+            {
+              class: "btn btn-primary btn-wide",
+              type: "button",
+              onClick: () => {
+                guest.link.sendTo({ t: "rematch" }, hostId);
+                toast("再戦をリクエストしました。ホストの開始を待っています…");
+              },
             },
-          },
-          "再戦をリクエスト",
-        ),
-      );
+            "再戦をリクエスト",
+          ),
+        );
+      }
     }
   }
 

@@ -2,7 +2,7 @@ import { CATEGORY_INFO, getEvent, getRole, getTrouble } from "../../core/cards";
 import { computeResolution, IllegalActionError } from "../../core/engine";
 import type { GameState, LogEntry, SkillId } from "../../core/types";
 import type { Session } from "../../controller/session";
-import { h, openSheet, toast } from "../dom";
+import { cutIn, h, openSheet, toast } from "../dom";
 import { show } from "../router";
 import { cardTile } from "../components/card";
 import { resultScreen } from "./result";
@@ -20,6 +20,8 @@ export function gameScreen(session: Session): HTMLElement {
   let carrySheetOpen = false;
   let activeSheet: { close: () => void } | null = null;
   let navigated = false;
+  let prevPhase: string | null = null;
+  let prevTurn = -1;
 
   const unsub = session.subscribe(render);
   session.onDisconnect = () => {
@@ -41,7 +43,7 @@ export function gameScreen(session: Session): HTMLElement {
         break;
       case "event": {
         const ev = getEvent(entry.eventId);
-        toast(`イベント「${ev.name}」: ${ev.description}`, 3500);
+        cutIn(`イベント「${ev.name}」`, ev.description, "event");
         break;
       }
       case "urgentPenalty":
@@ -79,6 +81,16 @@ export function gameScreen(session: Session): HTMLElement {
 
     const myTurn = s.phase === "response" && s.turn === session.meIndex;
 
+    // 着信直後の配札アニメーションと、自分の手番が来たときのカットイン
+    const justDealt = prevPhase === "incoming" && s.phase === "response";
+    const becameMyTurn =
+      myTurn && !(prevPhase === "response" && prevTurn === session.meIndex);
+    prevPhase = s.phase;
+    prevTurn = s.turn;
+    if (becameMyTurn) {
+      cutIn("あなたの番です!", "カードを選ぶかパスしてください", "turn");
+    }
+
     // 場札のスクロール位置を保持したまま再描画する
     const prevField = container.querySelector(".field-scroll");
     const scrollTop = prevField ? prevField.scrollTop : 0;
@@ -86,7 +98,7 @@ export function gameScreen(session: Session): HTMLElement {
     container.replaceChildren(
       renderStatusBar(s),
       renderOthers(s),
-      renderField(s, myTurn),
+      renderField(s, myTurn, justDealt),
       renderMyPanel(s, myTurn),
     );
 
@@ -117,35 +129,87 @@ export function gameScreen(session: Session): HTMLElement {
         const role = getRole(p.config.role);
         const isTurn = s.phase === "response" && s.turn === i;
         return h(
-          "div",
-          { class: `player-chip${isTurn ? " turn" : ""}` },
+          "button",
+          {
+            class: `player-chip${isTurn ? " turn" : ""}`,
+            type: "button",
+            onClick: () => openRoleSheet(i),
+          },
           h("span", { class: "p-name" }, p.config.name),
           h("span", { class: "p-role", style: `color:${CATEGORY_INFO[role.specialty].color}` }, role.name.split("(")[0]),
           h("span", { class: "p-stat" }, `★${p.score}`),
           h("span", { class: "p-stat" }, `⚙${p.tokens}`),
           h("span", { class: "p-stat" }, `技${p.skillUsesLeft}`),
-          isTurn ? h("span", { class: "turn-marker" }, "考え中") : null,
+          isTurn ? h("span", { class: "turn-marker" }, "考え中") : h("span", { class: "chip-info" }, "ⓘ"),
         );
       }),
     );
   }
 
-  function renderField(s: GameState, myTurn: boolean): HTMLElement {
-    const inner =
-      s.phase === "incoming"
-        ? h("div", { class: "field-empty" }, "トラブル着信中…")
-        : s.field.length === 0
-          ? h("div", { class: "field-empty" }, "場のトラブルはすべて対応済み!")
-          : h(
-              "div",
-              { class: "field-grid" },
-              s.field.map((id) =>
-                cardTile(id, {
-                  onClick: () => openCardSheet(id),
-                  dimmed: myTurn && !isAffordable(s, id),
-                }),
-              ),
-            );
+  /** 役割・固有スキルの参照シート(プレイヤー行タップでいつでも開ける) */
+  function openRoleSheet(idx: number): void {
+    const s = session.getState();
+    const p = s.players[idx];
+    const role = getRole(p.config.role);
+    const cat = CATEGORY_INFO[role.specialty];
+    openSheet(
+      h(
+        "div",
+        { class: "role-sheet" },
+        h("h3", null, `${p.config.name}${idx === session.meIndex ? "(あなた)" : ""}の役割`),
+        h(
+          "div",
+          { class: "detail-head", style: `background:${cat.color}` },
+          h("span", null, role.name),
+        ),
+        h(
+          "p",
+          { class: "role-line" },
+          h("strong", null, "専門分野: "),
+          h("span", { style: `color:${cat.color}` }, cat.name),
+          h("span", null, " — 同カテゴリはコスト−1(最低1)・評価+1"),
+        ),
+        h(
+          "p",
+          { class: "role-line" },
+          h("strong", null, `固有スキル「${role.skillName}」`),
+          h("span", { class: "skill-uses" }, ` 残り${p.skillUsesLeft}回`),
+        ),
+        h("p", { class: "hint" }, role.skillDescription),
+        h(
+          "div",
+          { class: "role-sheet-stats" },
+          h("span", null, `評価 ★${p.score}`),
+          h("span", null, `工数 ⚙${p.tokens}`),
+          h("span", null, `解決 ${p.resolved.length}枚`),
+        ),
+      ),
+    );
+  }
+
+  function renderField(s: GameState, myTurn: boolean, justDealt: boolean): HTMLElement {
+    let inner: HTMLElement;
+    if (s.phase === "incoming") {
+      inner = h("div", { class: "field-empty" }, "☎ トラブル着信中…");
+    } else if (s.field.length === 0) {
+      inner = h("div", { class: "field-empty" }, "場のトラブルはすべて対応済み!");
+    } else {
+      inner = h(
+        "div",
+        { class: "field-grid" },
+        s.field.map((id, i) => {
+          const tile = cardTile(id, {
+            onClick: () => openCardSheet(id),
+            dimmed: myTurn && !isAffordable(s, id),
+          });
+          if (justDealt) {
+            tile.classList.add("deal-in");
+            tile.style.animationDelay = `${i * 110}ms`;
+          }
+          return tile;
+        }),
+      );
+    }
     return h("div", { class: "field-scroll" }, inner);
   }
 
@@ -171,7 +235,16 @@ export function gameScreen(session: Session): HTMLElement {
           "div",
           { class: "my-name-row" },
           h("span", { class: "p-name" }, `${my.config.name}(あなた)`),
-          h("span", { class: "p-role", style: `color:${CATEGORY_INFO[role.specialty].color}` }, role.name),
+          h(
+            "button",
+            {
+              class: "role-link",
+              type: "button",
+              style: `color:${CATEGORY_INFO[role.specialty].color}`,
+              onClick: () => openRoleSheet(session.meIndex),
+            },
+            `${role.name} ⓘ`,
+          ),
         ),
         h(
           "div",
