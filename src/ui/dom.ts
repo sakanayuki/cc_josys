@@ -47,17 +47,26 @@ let toastBox: HTMLElement | null = null;
 
 // ---- カットイン(手番・イベント通知) ----
 
+export type CutInVariant = "turn" | "event" | "phase";
+
 interface CutInRequest {
   title: string;
   sub?: string;
-  variant: "turn" | "event";
+  variant: CutInVariant;
 }
+
+/** カットインの表示時間(ms)。フェーズ通知は短め、イベントは読ませるため長め */
+const CUTIN_DURATION: Record<CutInVariant, number> = {
+  turn: 1300,
+  event: 2000,
+  phase: 1000,
+};
 
 const cutInQueue: CutInRequest[] = [];
 let cutInActive = false;
 
 /** 画面中央に大きな帯で通知を出す。連続要求はキューで順番に表示する */
-export function cutIn(title: string, sub?: string, variant: "turn" | "event" = "turn"): void {
+export function cutIn(title: string, sub?: string, variant: CutInVariant = "turn"): void {
   cutInQueue.push({ title, sub, variant });
   if (!cutInActive) drainCutIns();
 }
@@ -84,7 +93,7 @@ function drainCutIns(): void {
       overlay.remove();
       drainCutIns();
     }, 250);
-  }, req.variant === "event" ? 2000 : 1300);
+  }, CUTIN_DURATION[req.variant]);
 }
 
 /** 画面上部に一時通知を出す */

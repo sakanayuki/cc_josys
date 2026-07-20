@@ -39,7 +39,7 @@ export function gameScreen(session: Session): HTMLElement {
   function announce(entry: LogEntry, s: GameState): void {
     switch (entry.type) {
       case "roundStart":
-        toast(`${entry.round}日目 スタート(工数支給)`);
+        cutIn(`${entry.round}日目 スタート`, "着信フェイズ: 工数を支給、トラブルが舞い込む…", "phase");
         break;
       case "event": {
         const ev = getEvent(entry.eventId);
@@ -81,12 +81,19 @@ export function gameScreen(session: Session): HTMLElement {
 
     const myTurn = s.phase === "response" && s.turn === session.meIndex;
 
-    // 着信直後の配札アニメーションと、自分の手番が来たときのカットイン
+    // 着信直後の配札アニメーションと、フェーズ変化・自分の手番のカットイン
     const justDealt = prevPhase === "incoming" && s.phase === "response";
     const becameMyTurn =
       myTurn && !(prevPhase === "response" && prevTurn === session.meIndex);
+    const phaseChanged = prevPhase !== null && prevPhase !== s.phase;
     prevPhase = s.phase;
     prevTurn = s.turn;
+    if (phaseChanged && s.phase === "response") {
+      cutIn("対応フェイズ", "手番順にトラブルを解決 or パス", "phase");
+    }
+    if (phaseChanged && s.phase === "closing") {
+      cutIn("定時フェイズ", "残った工数の繰り越しを選べます", "phase");
+    }
     if (becameMyTurn) {
       cutIn("あなたの番です!", "カードを選ぶかパスしてください", "turn");
     }
