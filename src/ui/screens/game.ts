@@ -225,6 +225,7 @@ export function gameScreen(session: Session): HTMLElement {
   function renderMyPanel(s: GameState, myTurn: boolean): HTMLElement {
     const my = me(s);
     const role = getRole(my.config.role);
+    const cat = CATEGORY_INFO[role.specialty];
     return h(
       "div",
       { class: `my-panel${myTurn ? " turn" : ""}` },
@@ -234,24 +235,25 @@ export function gameScreen(session: Session): HTMLElement {
         h(
           "div",
           { class: "my-name-row" },
-          h("span", { class: "p-name" }, `${my.config.name}(あなた)`),
           h(
-            "button",
-            {
-              class: "role-link",
-              type: "button",
-              style: `color:${CATEGORY_INFO[role.specialty].color}`,
-              onClick: () => openRoleSheet(session.meIndex),
-            },
-            `${role.name} ⓘ`,
+            "span",
+            { class: "p-name" },
+            my.config.name === "あなた" ? "あなた" : `${my.config.name}(あなた)`,
           ),
-        ),
-        h(
-          "div",
-          { class: "my-stats" },
           h("span", { class: "p-stat big" }, `★${my.score}`),
           h("span", { class: "p-stat big" }, `⚙${my.tokens}`),
-          h("span", { class: "p-stat" }, `${role.skillName} 残${my.skillUsesLeft}回`),
+        ),
+        h(
+          "button",
+          {
+            class: "my-role-btn",
+            type: "button",
+            style: `--role-color:${cat.color}`,
+            onClick: () => openRoleSheet(session.meIndex),
+          },
+          h("span", { class: "my-role-name" }, role.name),
+          h("span", { class: "my-role-skill" }, `${role.skillName} 残${my.skillUsesLeft}回`),
+          h("span", { class: "my-role-chevron" }, "❯"),
         ),
         h(
           "div",

@@ -33,7 +33,13 @@ export function resultScreen(
       h(
         "div",
         { class: "result-who" },
-        h("span", { class: "p-name" }, `${p.config.name}${idx === session.meIndex ? "(あなた)" : ""}`),
+        h(
+          "span",
+          { class: "p-name" },
+          idx !== session.meIndex || p.config.name === "あなた"
+            ? p.config.name
+            : `${p.config.name}(あなた)`,
+        ),
         h("span", { class: "p-role-small" }, role.name),
       ),
       h(

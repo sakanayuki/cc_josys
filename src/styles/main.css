@@ -497,14 +497,38 @@ button {
   color: #5c7194;
   font-size: 13px;
 }
-.role-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 12px;
+.my-role-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--role-color, #3c4c68);
+  background: color-mix(in srgb, var(--role-color, #3c4c68) 22%, #16223a);
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-align: left;
+}
+.my-role-btn:active {
+  transform: translateY(1px);
+}
+.my-role-name {
+  font-weight: 800;
+  font-size: 14px;
+  color: color-mix(in srgb, var(--role-color, #cdd8ea) 60%, #ffffff);
+}
+.my-role-skill {
+  margin-left: auto;
+  font-size: 12px;
+  color: #f5b942;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.my-role-chevron {
+  color: #9fb0c9;
+  font-size: 14px;
 }
 .role-sheet .role-line {
   font-size: 14px;

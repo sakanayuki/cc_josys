@@ -234,6 +234,8 @@ function advanceIncoming(s: GameState): GameState {
   s.phase = "response";
   s.turn = s.startPlayer;
   s.consecutivePasses = 0;
+  // 山札切れ等で場が空のまま始まった場合はそのまま終業へ
+  if (s.field.length === 0) return enterClosing(s);
   return s;
 }
 
@@ -267,6 +269,8 @@ function resolve(
     gain,
     skill: action.useSkill ?? null,
   });
+  // 場が空になったら以降は全員パスしかできないため、自動でラウンドを締める
+  if (s.field.length === 0) return enterClosing(s);
   s.turn = (s.turn + 1) % s.players.length;
   return s;
 }

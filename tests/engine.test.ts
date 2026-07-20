@@ -123,6 +123,22 @@ describe("対応フェイズ", () => {
     expect(() => applyAction(s, { type: "PASS", player: 1 })).toThrow(IllegalActionError);
   });
 
+  it("場のカードがすべて解決されたら自動でラウンドが終わる", () => {
+    let s = stateWithDeck(["Y1", "Y4", "Y5", "I9", "I1"]); // 全てコスト1
+    s.startPlayer = 0;
+    s = applyAction(s, { type: "ADVANCE" });
+    s.players[0].tokens = 4;
+    s.players[1].tokens = 4;
+    s = applyAction(s, { type: "RESOLVE", player: 0, cardId: "Y1" });
+    s = applyAction(s, { type: "RESOLVE", player: 1, cardId: "Y4" });
+    s = applyAction(s, { type: "RESOLVE", player: 0, cardId: "Y5" });
+    expect(s.round).toBe(1); // まだ1枚残っている
+    s = applyAction(s, { type: "RESOLVE", player: 1, cardId: "I9" });
+    // 最後の1枚が解決された時点でパス不要で次の日へ
+    expect(s.round).toBe(2);
+    expect(s.phase).toBe("incoming");
+  });
+
   it("全員連続パスでラウンド終了、間に解決が入るとリセット", () => {
     let s = stateWithDeck(["Y1", "Y2", "S1", "I1"]);
     s.startPlayer = 0;
