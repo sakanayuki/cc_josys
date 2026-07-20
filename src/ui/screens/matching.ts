@@ -321,7 +321,8 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
 
     if (msg.t === "pickRole" && l.isHost) {
       const seat = guestIds.indexOf(from) + 1;
-      if (seat > 0 && !roles.includes(msg.role)) {
+      // 希望の重複は許可する(開始時に抽選で1人に決める)
+      if (seat > 0) {
         roles[seat] = msg.role;
       }
       broadcastLobby();
@@ -380,15 +381,42 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
     return roles.slice(0, count).every((r) => r !== null);
   }
 
+  /**
+   * 役割希望の重複を解決する。同じ役割を希望した席からは抽選で1人だけが
+   * その役割になり、外れた席には余った役割をランダムに割り当てる。
+   */
+  function resolveRoleWishes(count: number): RoleId[] {
+    const finalRoles: (RoleId | null)[] = Array(count).fill(null);
+    const bySeat = new Map<RoleId, number[]>();
+    for (let i = 0; i < count; i++) {
+      const wish = roles[i]!;
+      const seats = bySeat.get(wish) ?? [];
+      seats.push(i);
+      bySeat.set(wish, seats);
+    }
+    for (const [role, seats] of bySeat) {
+      const winner = seats[Math.floor(Math.random() * seats.length)];
+      finalRoles[winner] = role;
+    }
+    const leftovers = ROLES.map((r) => r.id)
+      .filter((id) => !finalRoles.includes(id))
+      .sort(() => Math.random() - 0.5);
+    for (let i = 0; i < count; i++) {
+      if (finalRoles[i] === null) finalRoles[i] = leftovers.pop()!;
+    }
+    return finalRoles as RoleId[];
+  }
+
   function startAsHost(): void {
     if (pvp.step !== "lobby" || !link || !canStart()) return;
     const count = 1 + guestIds.length;
+    const finalRoles = resolveRoleWishes(count);
     const config: MatchConfig = {
       seed: newSeed(),
       players: Array.from({ length: count }, (_, i) => ({
         name: names[i],
         kind: i === 0 ? ("human" as const) : ("remote" as const),
-        role: roles[i]!,
+        role: finalRoles[i],
       })),
     };
     guestIds.forEach((id, i) => {
@@ -448,11 +476,15 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
           h(
             "span",
             { class: `member-role${role ? " picked" : ""}` },
-            role ? role.name.split("(")[0] : "役割を選択中…",
+            role ? `希望: ${role.name.split("(")[0]}` : "役割を選択中…",
           ),
         );
       }),
     );
+
+    // 同じ役割を複数人が希望しているか(注釈は重複時のみ表示)
+    const activeWishes = roles.slice(0, count).filter((r): r is RoleId => r !== null);
+    const hasDuplicateWish = new Set(activeWishes).size !== activeWishes.length;
 
     return h(
       "div",
@@ -467,20 +499,25 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
             renderRoomIdShare(l.roomId),
           )
         : null,
-      h("h2", { class: "section-title" }, "じぶんの役割"),
+      h("h2", { class: "section-title" }, "希望する役割(重複OK)"),
+      hasDuplicateWish
+        ? h(
+            "p",
+            { class: "dup-note" },
+            "⚠ 同じ役割を希望しているプレイヤーがいます。対戦開始時に抽選で1人だけがその役割になり、外れた人には余った役割がランダムに割り当てられます。",
+          )
+        : null,
       h(
         "div",
         { class: "role-grid" },
         ROLES.map((r) => {
-          const takenBy = roles.findIndex((x) => x === r.id);
-          const mine = takenBy === mySeat && mySeat >= 0;
-          const takenByOther = takenBy >= 0 && !mine;
+          const mine = mySeat >= 0 && roles[mySeat] === r.id;
+          const wanters = names.filter((_, i) => i < count && roles[i] === r.id);
           return h(
             "button",
             {
-              class: `role-btn${mine ? " active" : ""}${takenByOther ? " taken" : ""}`,
+              class: `role-btn${mine ? " active" : ""}`,
               type: "button",
-              disabled: takenByOther,
               onClick: () => {
                 if (pvp.step !== "lobby" || !link) return;
                 if (isHost) {
@@ -495,7 +532,13 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
             },
             h("span", { class: "role-name" }, r.name),
             h("span", { class: "role-desc" }, `${r.skillName}: ${r.skillDescription}`),
-            takenByOther ? h("span", { class: "role-taken" }, `${names[takenBy]}が選択`) : null,
+            wanters.length > 0
+              ? h(
+                  "span",
+                  { class: `role-want${wanters.length > 1 ? " dup" : ""}` },
+                  `希望: ${wanters.join(", ")}${wanters.length > 1 ? "(抽選)" : ""}`,
+                )
+              : null,
           );
         }),
       ),
