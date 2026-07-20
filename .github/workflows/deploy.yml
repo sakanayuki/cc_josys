@@ -19,9 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v4
-        with:
-          enablement: true
+      # 注: Pagesの有効化(configure-pages enablement)は初回デプロイ時に実施済み。
+      # 有効化APIはGITHUB_TOKENの権限で失敗することがあるため、以降は呼ばない。
       - uses: actions/setup-node@v4
         with:
           node-version: 22
