@@ -125,8 +125,12 @@ export function computeResolution(
       throw new IllegalActionError("incidentCommand requires urgent card");
     }
     if (useSkill === "autoScript") {
-      if (player.lastResolvedCategory !== card.category) {
-        throw new IllegalActionError("autoScript requires same category as last resolved");
+      // 一度解決したカテゴリの"スクリプト資産"は残り続ける(バランス調整済み仕様)
+      const resolvedCategories = new Set(
+        player.resolved.map((id) => getTrouble(id).category),
+      );
+      if (!resolvedCategories.has(card.category)) {
+        throw new IllegalActionError("autoScript requires a previously resolved category");
       }
       cost = 0;
     }
@@ -222,6 +226,9 @@ function advanceIncoming(s: GameState): GameState {
         toReveal += 2;
       } else if (ev === "budget") {
         for (const p of s.players) p.tokens += 1;
+      } else if (ev === "automation") {
+        const dev = s.players.find((p) => p.config.role === "dev");
+        if (dev) dev.tokens += 2;
       }
       // イベントは適用後ゲームから除外(再シャッフル対象にしない)
     } else {

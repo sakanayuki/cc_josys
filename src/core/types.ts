@@ -10,7 +10,7 @@ export interface TroubleCard {
   eval: number; // 印刷評価
 }
 
-export type EventId = "audit" | "holiday" | "budget";
+export type EventId = "audit" | "holiday" | "budget" | "automation";
 
 export interface EventCard {
   id: EventId;

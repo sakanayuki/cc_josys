@@ -53,6 +53,8 @@ export const EVENT_CARDS: readonly EventCard[] = [
   { id: "audit", name: "監査が入る", description: "このラウンド、セキュリティ(赤)カードを解決したときの評価+1" },
   { id: "holiday", name: "大型連休明け", description: "このラウンドの着信で、追加でトラブルカードを2枚公開する" },
   { id: "budget", name: "予算が下りた", description: "全プレイヤー、直ちに工数トークン+1" },
+  // デジタル版のバランス調整で追加(アプリ開発担当を強化する専用イベント)
+  { id: "automation", name: "自動化ブーム", description: "アプリ開発担当は、直ちに工数トークン+2(不在なら何も起きない)" },
 ];
 
 export const ROLES: readonly RoleDef[] = [
@@ -78,7 +80,7 @@ export const ROLES: readonly RoleDef[] = [
     specialty: "dev",
     skillId: "autoScript",
     skillName: "自動化スクリプト",
-    skillDescription: "直前に自分が解決したのと同カテゴリのカードを工数0で解決",
+    skillDescription: "このゲームで自分が解決したことのあるカテゴリのカードを工数0で解決",
   },
   {
     id: "helpdesk",

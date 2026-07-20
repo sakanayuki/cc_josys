@@ -28,7 +28,7 @@ describe("initGame", () => {
     const troubles = s.deck.filter((id) => !id.startsWith("E:"));
     const events = s.deck.filter((id) => id.startsWith("E:"));
     expect(troubles).toHaveLength(34);
-    expect(events).toHaveLength(3);
+    expect(events).toHaveLength(4);
     // 未使用: dev(緑9→6), helpdesk(support9→6)
     expect(troubles.filter((id) => getTrouble(id).category === "dev")).toHaveLength(6);
     expect(troubles.filter((id) => getTrouble(id).category === "support")).toHaveLength(6);
@@ -68,6 +68,20 @@ describe("着信フェイズ", () => {
     const s = stateWithDeck(["E:holiday", "Y1", "Y2", "S1", "S2", "I1", "I2", "A1"]);
     const s2 = applyAction(s, { type: "ADVANCE" });
     expect(s2.field).toHaveLength(6);
+  });
+
+  it("イベント: 自動化ブームはアプリ開発担当だけ工数+2", () => {
+    let s = initGame(makeConfig(7, ["dev", "infra"]));
+    s.deck = ["E:automation", "Y1", "Y2", "S1", "S2", "I1"];
+    s = applyAction(s, { type: "ADVANCE" });
+    expect(s.players[0].tokens).toBe(5); // dev: 3+2
+    expect(s.players[1].tokens).toBe(3);
+
+    // アプリ開発担当が不在なら誰も増えない
+    let s2 = initGame(makeConfig(7, ["csirt", "infra"]));
+    s2.deck = ["E:automation", "Y1", "Y2", "S1", "S2", "I1"];
+    s2 = applyAction(s2, { type: "ADVANCE" });
+    expect(s2.players.every((p) => p.tokens === 3)).toBe(true);
   });
 
   it("イベント: 監査が入るはこのラウンドの赤解決を+1", () => {
@@ -234,17 +248,26 @@ describe("スキル", () => {
     expect(computeResolution(s, 0, "S4", "godResponse").gain).toBe(2);
   });
 
-  it("自動化スクリプト: 直前の解決と同カテゴリなら工数0", () => {
+  it("自動化スクリプト: 解決済みカテゴリのカードなら工数0(未解決カテゴリは不可)", () => {
     let s = initGame(makeConfig(7, ["dev", "infra"]));
     s.deck = ["A1", "A4", "Y1", "I1"];
     s.startPlayer = 0;
     s = applyAction(s, { type: "ADVANCE" });
+    // まだ何も解決していない → 使えない
     expect(() => computeResolution(s, 0, "A4", "autoScript")).toThrow(IllegalActionError);
     s = applyAction(s, { type: "RESOLVE", player: 0, cardId: "A1" });
     s = applyAction(s, { type: "PASS", player: 1 });
     const r = computeResolution(s, 0, "A4", "autoScript");
     expect(r.cost).toBe(0);
     expect(r.gain).toBe(3); // 印刷2+専門1
+    // 解決したことのないカテゴリ(黄)はまだ対象外
+    expect(() => computeResolution(s, 0, "Y1", "autoScript")).toThrow(IllegalActionError);
+
+    // 間に別カテゴリの解決を挟んでも、緑の解決実績は残り続ける
+    s = applyAction(s, { type: "RESOLVE", player: 0, cardId: "Y1" });
+    s = applyAction(s, { type: "PASS", player: 1 });
+    expect(computeResolution(s, 0, "A4", "autoScript").cost).toBe(0);
+    // 黄も解決したので黄にも使えるようになる(場に黄が残っていれば)
   });
 
   it("冗長構成: 定時に宣言すると残工数を繰り越す。5ラウンド目は宣言不可", () => {
