@@ -80,7 +80,7 @@ export const ROLES: readonly RoleDef[] = [
     specialty: "dev",
     skillId: "autoScript",
     skillName: "自動化スクリプト",
-    skillDescription: "このゲームで自分が解決したことのあるカテゴリのカードを工数0で解決",
+    skillDescription: "このゲームで自分が解決したことのあるカテゴリのカードを工数0で解決し、続けてもう一度行動できる",
   },
   {
     id: "helpdesk",

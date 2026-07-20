@@ -267,7 +267,14 @@ describe("スキル", () => {
     s = applyAction(s, { type: "RESOLVE", player: 0, cardId: "Y1" });
     s = applyAction(s, { type: "PASS", player: 1 });
     expect(computeResolution(s, 0, "A4", "autoScript").cost).toBe(0);
-    // 黄も解決したので黄にも使えるようになる(場に黄が残っていれば)
+
+    // 自動化スクリプトでの解決は手番を消費しない(続けて自分が動ける)
+    s = applyAction(s, { type: "RESOLVE", player: 0, cardId: "A4", useSkill: "autoScript" });
+    expect(s.phase).toBe("response");
+    expect(s.turn).toBe(0);
+    // 続けての行動(パス)は通常どおり手番を消費する
+    s = applyAction(s, { type: "PASS", player: 0 });
+    expect(s.turn).toBe(1);
   });
 
   it("冗長構成: 定時に宣言すると残工数を繰り越す。5ラウンド目は宣言不可", () => {

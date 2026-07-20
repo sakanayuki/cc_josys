@@ -1,7 +1,7 @@
 import type { Action, GameState, MatchConfig, RoleId } from "../core/types";
 
 /** メッセージ互換性の版数。ゲームルールや状態形式を変えたら上げる */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export type Msg =
   | { t: "hello"; v: number; name: string; host: boolean }

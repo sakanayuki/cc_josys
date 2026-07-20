@@ -278,7 +278,10 @@ function resolve(
   });
   // 場が空になったら以降は全員パスしかできないため、自動でラウンドを締める
   if (s.field.length === 0) return enterClosing(s);
-  s.turn = (s.turn + 1) % s.players.length;
+  // 自動化スクリプトでの解決は手番を消費せず、続けてもう一度行動できる
+  if (action.useSkill !== "autoScript") {
+    s.turn = (s.turn + 1) % s.players.length;
+  }
   return s;
 }
 
