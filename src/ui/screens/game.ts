@@ -465,8 +465,10 @@ function formatLog(entry: LogEntry, s: GameState): string | null {
   switch (entry.type) {
     case "roundStart":
       return `―― ${entry.round}日目 ――`;
-    case "event":
-      return `イベント「${getEvent(entry.eventId).name}」`;
+    case "event": {
+      const ev = getEvent(entry.eventId);
+      return `イベント「${ev.name}」: ${ev.description}`;
+    }
     case "resolve": {
       const skill =
         entry.skill !== null
