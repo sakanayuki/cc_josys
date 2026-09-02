@@ -2,7 +2,7 @@ import { CATEGORY_INFO, getEvent, getRole, getTrouble } from "../../core/cards";
 import { computeResolution, IllegalActionError } from "../../core/engine";
 import type { GameState, LogEntry, SkillId } from "../../core/types";
 import type { Session } from "../../controller/session";
-import { cutIn, h, openSheet, toast } from "../dom";
+import { cutIn, h, icon, openSheet, toast } from "../dom";
 import { show } from "../router";
 import { cardTile } from "../components/card";
 import { resultScreen } from "./result";
@@ -122,7 +122,7 @@ export function gameScreen(session: Session): HTMLElement {
       h("span", { class: "round-label" }, `${s.round}日目 / 5日`),
       h("span", { class: "phase-label" }, PHASE_LABELS[s.phase]),
       s.activeEvents.includes("audit")
-        ? h("span", { class: "event-badge" }, "監査中: 赤+1")
+        ? h("span", { class: "event-badge" }, icon("shield"), "監査中: 赤+1")
         : null,
     );
   }
@@ -138,16 +138,18 @@ export function gameScreen(session: Session): HTMLElement {
         return h(
           "button",
           {
-            class: `player-chip${isTurn ? " turn" : ""}`,
+            class: `player-chip cat-${role.specialty}${isTurn ? " turn" : ""}`,
             type: "button",
             onClick: () => openRoleSheet(i),
           },
           h("span", { class: "p-name" }, p.config.name),
-          h("span", { class: "p-role", style: `color:${CATEGORY_INFO[role.specialty].color}` }, role.name.split("(")[0]),
+          h("span", { class: "p-role cat-fg" }, role.name.split("(")[0]),
           h("span", { class: "p-stat" }, `★${p.score}`),
           h("span", { class: "p-stat" }, `⚙${p.tokens}`),
           h("span", { class: "p-stat" }, `技${p.skillUsesLeft}`),
-          isTurn ? h("span", { class: "turn-marker" }, "考え中") : h("span", { class: "chip-info" }, "ⓘ"),
+          isTurn
+            ? h("span", { class: "turn-marker" }, icon("hourglass_top"), "考え中")
+            : h("span", { class: "chip-info" }, icon("info")),
         );
       }),
     );
@@ -162,18 +164,19 @@ export function gameScreen(session: Session): HTMLElement {
     openSheet(
       h(
         "div",
-        { class: "role-sheet" },
+        { class: `role-sheet cat-${role.specialty}` },
         h("h3", null, `${p.config.name}${idx === session.meIndex ? "(あなた)" : ""}の役割`),
         h(
           "div",
-          { class: "detail-head", style: `background:${cat.color}` },
+          { class: "detail-head" },
           h("span", null, role.name),
+          icon("shield"),
         ),
         h(
           "p",
           { class: "role-line" },
           h("strong", null, "専門分野: "),
-          h("span", { style: `color:${cat.color}` }, cat.name),
+          h("span", { class: "cat-fg" }, cat.name),
           h("span", null, " — 同カテゴリはコスト−1(最低1)・評価+1"),
         ),
         h(
@@ -197,9 +200,14 @@ export function gameScreen(session: Session): HTMLElement {
   function renderField(s: GameState, myTurn: boolean, justDealt: boolean): HTMLElement {
     let inner: HTMLElement;
     if (s.phase === "incoming") {
-      inner = h("div", { class: "field-empty" }, "☎ トラブル着信中…");
+      inner = h("div", { class: "field-empty" }, icon("call", "xl"), "トラブル着信中…");
     } else if (s.field.length === 0) {
-      inner = h("div", { class: "field-empty" }, "場のトラブルはすべて対応済み!");
+      inner = h(
+        "div",
+        { class: "field-empty" },
+        icon("check_circle", "xl"),
+        "場のトラブルはすべて対応済み!",
+      );
     } else {
       inner = h(
         "div",
@@ -232,10 +240,9 @@ export function gameScreen(session: Session): HTMLElement {
   function renderMyPanel(s: GameState, myTurn: boolean): HTMLElement {
     const my = me(s);
     const role = getRole(my.config.role);
-    const cat = CATEGORY_INFO[role.specialty];
     return h(
       "div",
-      { class: `my-panel${myTurn ? " turn" : ""}` },
+      { class: `my-panel cat-${role.specialty}${myTurn ? " turn" : ""}` },
       h(
         "div",
         { class: "my-info" },
@@ -255,12 +262,11 @@ export function gameScreen(session: Session): HTMLElement {
           {
             class: "my-role-btn",
             type: "button",
-            style: `--role-color:${cat.color}`,
             onClick: () => openRoleSheet(session.meIndex),
           },
           h("span", { class: "my-role-name" }, role.name),
           h("span", { class: "my-role-skill" }, `${role.skillName} 残${my.skillUsesLeft}回`),
-          h("span", { class: "my-role-chevron" }, "❯"),
+          h("span", { class: "my-role-chevron" }, icon("chevron_right")),
         ),
         h(
           "div",
@@ -278,7 +284,7 @@ export function gameScreen(session: Session): HTMLElement {
         h(
           "button",
           {
-            class: "btn",
+            class: "btn btn-tonal",
             type: "button",
             disabled: !myTurn,
             onClick: () => {
@@ -290,9 +296,15 @@ export function gameScreen(session: Session): HTMLElement {
               }
             },
           },
+          icon("skip_next"),
           "パス",
         ),
-        h("button", { class: "btn", type: "button", onClick: openLogSheet }, "ログ📜"),
+        h(
+          "button",
+          { class: "btn btn-outlined", type: "button", onClick: openLogSheet },
+          icon("history_edu"),
+          "ログ",
+        ),
       ),
     );
   }
@@ -345,14 +357,16 @@ export function gameScreen(session: Session): HTMLElement {
 
     const content = h(
       "div",
-      { class: "card-detail" },
+      { class: `card-detail cat-${card.category}` },
       h(
         "div",
-        { class: "detail-head", style: `background:${cat.color}` },
+        { class: "detail-head" },
         h("span", null, cat.name),
         h("span", null, card.id),
       ),
-      card.urgent ? h("span", { class: "urgent-badge inline" }, "緊急") : null,
+      card.urgent
+        ? h("span", { class: "urgent-badge inline" }, icon("priority_high"), "緊急")
+        : null,
       h("h3", { class: "detail-name" }, card.name),
       h(
         "div",
@@ -428,12 +442,13 @@ export function gameScreen(session: Session): HTMLElement {
               sheet.close();
             },
           },
+          icon("bolt"),
           `使う(⚙${my.tokens}繰り越し)`,
         ),
         h(
           "button",
           {
-            class: "btn btn-wide",
+            class: "btn btn-outlined btn-wide",
             type: "button",
             onClick: () => {
               session.act({ type: "CARRY_OVER", player: session.meIndex, use: false });

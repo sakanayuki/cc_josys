@@ -1,7 +1,7 @@
 import { CATEGORY_INFO, getTrouble } from "../../core/cards";
-import { h } from "../dom";
+import { h, icon } from "../dom";
 
-/** 場のトラブルカード表示 */
+/** 場のトラブルカード表示(M3 filled card + カテゴリのトーナルヘッダー) */
 export function cardTile(
   cardId: string,
   opts: { onClick?: () => void; dimmed?: boolean } = {},
@@ -21,7 +21,9 @@ export function cardTile(
       h("span", { class: "card-cat" }, cat.name),
       h("span", { class: "card-id" }, card.id),
     ),
-    card.urgent ? h("span", { class: "urgent-badge" }, "緊急") : null,
+    card.urgent
+      ? h("span", { class: "urgent-badge" }, icon("priority_high"), "緊急")
+      : null,
     h("div", { class: "card-name" }, card.name),
     h(
       "div",

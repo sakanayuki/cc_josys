@@ -4,7 +4,7 @@ import { LocalSession } from "../../controller/local";
 import { GuestSession, HostSession, MAX_GUESTS, PvpLink } from "../../controller/p2p";
 import { PROTOCOL_VERSION, type Msg } from "../../net/protocol";
 import { isValidRoomId, makeRoomId, normalizeRoomId } from "../../net/room";
-import { copyText, h, shareText, toast } from "../dom";
+import { copyText, h, icon, shareText, toast } from "../dom";
 import { show } from "../router";
 import { gameScreen } from "./game";
 import { getPlayerName, titleScreen } from "./title";
@@ -47,14 +47,15 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
       h(
         "button",
         {
-          class: "btn btn-ghost",
+          class: "icon-btn",
           type: "button",
+          "aria-label": "もどる",
           onClick: () => {
             cleanup();
             show(titleScreen());
           },
         },
-        "← もどる",
+        icon("arrow_back", "lg"),
       ),
       h(
         "div",
@@ -81,7 +82,7 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
               render();
             },
           },
-          "ふたりで",
+          "みんなで",
         ),
       ),
     ),
@@ -110,6 +111,7 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
                 render();
               },
             },
+            npcLevels[i] === lv ? icon("check") : null,
             LEVEL_LABELS[lv],
           ),
         ),
@@ -133,6 +135,7 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
                 render();
               },
             },
+            npcCount === c ? icon("check") : null,
             `${c}体`,
           ),
         ),
@@ -162,6 +165,7 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
           h("span", { class: "role-name" }, "おまかせ"),
           h("span", { class: "role-desc" }, "ランダムに決める"),
         ),
+
         ROLES.map((r) =>
           h(
             "button",
@@ -180,7 +184,8 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
       ),
       h(
         "button",
-        { class: "btn btn-primary btn-wide", type: "button", onClick: startPve },
+        { class: "btn btn-primary btn-lg btn-wide", type: "button", onClick: startPve },
+        icon("play_arrow"),
         "対戦開始",
       ),
     );
@@ -443,14 +448,20 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
       h(
         "div",
         { class: "btn-row" },
-        h("button", { class: "btn", type: "button", onClick: () => copyText(id) }, "コピー"),
+        h(
+          "button",
+          { class: "btn btn-tonal", type: "button", onClick: () => copyText(id) },
+          icon("content_copy"),
+          "コピー",
+        ),
         h(
           "button",
           {
-            class: "btn",
+            class: "btn btn-tonal",
             type: "button",
             onClick: () => shareText(`「情シス、出動。」で対戦しよう! ルームID: ${id}\n${location.href}`),
           },
+          icon("ios_share"),
           "共有",
         ),
       ),
@@ -470,8 +481,12 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
         const role = roles[i] ? ROLES.find((r) => r.id === roles[i]) : null;
         return h(
           "div",
-          { class: "member-row" },
-          h("span", { class: "member-badge" }, i === 0 ? "👑" : "🧑"),
+          { class: `member-row${i === mySeat ? " is-me" : ""}` },
+          h(
+            "span",
+            { class: `member-badge${i === 0 ? " host" : ""}` },
+            icon(i === 0 ? "shield" : "person"),
+          ),
           h("span", { class: "p-name" }, `${name}${i === mySeat ? "(あなた)" : ""}`),
           h(
             "span",
@@ -504,7 +519,12 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
         ? h(
             "p",
             { class: "dup-note" },
-            "⚠ 同じ役割を希望しているプレイヤーがいます。対戦開始時に抽選で1人だけがその役割になり、外れた人には余った役割がランダムに割り当てられます。",
+            icon("warning"),
+            h(
+              "span",
+              null,
+              "同じ役割を希望しているプレイヤーがいます。対戦開始時に抽選で1人だけがその役割になり、外れた人には余った役割がランダムに割り当てられます。",
+            ),
           )
         : null,
       h(
@@ -546,11 +566,12 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
         ? h(
             "button",
             {
-              class: "btn btn-primary btn-wide",
+              class: "btn btn-primary btn-lg btn-wide",
               type: "button",
               disabled: !canStart(),
               onClick: startAsHost,
             },
+            canStart() ? icon("play_arrow") : null,
             canStart()
               ? `対戦開始(${count}人)`
               : count < 2
@@ -573,16 +594,18 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
         h("p", { class: "hint" }, "ルームIDを発行して相手に伝えるだけでマッチングできます(最大4人)。通信はP2P(WebRTC)で行われ、サーバーには保存されません。"),
         h(
           "button",
-          { class: "btn btn-primary btn-wide", type: "button", onClick: createRoom },
+          { class: "btn btn-primary btn-lg btn-wide", type: "button", onClick: createRoom },
+          icon("meeting_room"),
           "部屋を作る(IDを発行)",
         ),
         h(
           "button",
           {
-            class: "btn btn-wide",
+            class: "btn btn-tonal btn-lg btn-wide",
             type: "button",
             onClick: () => setPvp({ step: "join-input" }),
           },
+          icon("login"),
           "部屋に入る(IDを入力)",
         ),
       );
@@ -604,7 +627,7 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
         h("div", { class: "spinner" }),
         h(
           "button",
-          { class: "btn btn-ghost btn-wide", type: "button", onClick: () => resetPvp() },
+          { class: "btn btn-text btn-wide", type: "button", onClick: () => resetPvp() },
           "部屋を閉じる",
         ),
       );
@@ -613,6 +636,7 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
     if (pvp.step === "join-input") {
       const input = h("input", {
         class: "text-input room-input",
+        id: "room-id-input",
         type: "text",
         maxlength: "6",
         placeholder: "ABC123",
@@ -623,11 +647,16 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
         "div",
         null,
         h("h2", { class: "section-title" }, "相手から聞いたルームID"),
-        input,
+        h(
+          "label",
+          { class: "field", for: "room-id-input" },
+          h("span", { class: "field-label" }, "英数6文字"),
+          input,
+        ),
         h(
           "button",
           {
-            class: "btn btn-primary btn-wide",
+            class: "btn btn-primary btn-lg btn-wide",
             type: "button",
             onClick: () => {
               const id = normalizeRoomId(input.value);
@@ -638,11 +667,12 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
               joinRoomWith(id);
             },
           },
+          icon("login"),
           "入室する",
         ),
         h(
           "button",
-          { class: "btn btn-ghost btn-wide", type: "button", onClick: () => setPvp({ step: "idle" }) },
+          { class: "btn btn-text btn-wide", type: "button", onClick: () => setPvp({ step: "idle" }) },
           "もどる",
         ),
       );
@@ -656,7 +686,7 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
         h("div", { class: "spinner" }),
         h(
           "button",
-          { class: "btn btn-ghost btn-wide", type: "button", onClick: () => resetPvp() },
+          { class: "btn btn-text btn-wide", type: "button", onClick: () => resetPvp() },
           "やめる",
         ),
       );
@@ -666,12 +696,8 @@ export function matchingScreen(initialTab: "pve" | "pvp"): HTMLElement {
   }
 
   function render(): void {
-    for (const t of container.querySelectorAll(".tab")) {
-      t.classList.toggle(
-        "active",
-        (t.textContent === "ひとりで") === (tab === "pve"),
-      );
-    }
+    const tabs = container.querySelectorAll(".tab");
+    tabs.forEach((t, i) => t.classList.toggle("active", (i === 0) === (tab === "pve")));
     body.replaceChildren(tab === "pve" ? renderPve() : renderPvp());
   }
 

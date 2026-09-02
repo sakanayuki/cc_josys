@@ -4,7 +4,7 @@ import type { MatchConfig } from "../../core/types";
 import { LocalSession } from "../../controller/local";
 import { GuestSession, HostSession } from "../../controller/p2p";
 import type { Session } from "../../controller/session";
-import { h, toast } from "../dom";
+import { h, icon, toast } from "../dom";
 import { show } from "../router";
 import { titleScreen } from "./title";
 
@@ -68,6 +68,7 @@ export function resultScreen(
               void import("./game").then(({ gameScreen }) => show(gameScreen(next)));
             },
           },
+          icon("replay"),
           "もう一度(同じメンバー)",
         ),
       );
@@ -96,6 +97,7 @@ export function resultScreen(
                 void import("./game").then(({ gameScreen }) => show(gameScreen(next)));
               },
             },
+            icon("replay"),
             "もう一度(再戦)",
           ),
         );
@@ -126,6 +128,7 @@ export function resultScreen(
                 toast("再戦をリクエストしました。ホストの開始を待っています…");
               },
             },
+            icon("refresh"),
             "再戦をリクエスト",
           ),
         );
@@ -137,7 +140,7 @@ export function resultScreen(
     h(
       "button",
       {
-        class: "btn btn-wide",
+        class: "btn btn-text btn-wide",
         type: "button",
         onClick: () => {
           session.dispose();
@@ -155,11 +158,17 @@ export function resultScreen(
     "div",
     { class: "screen result-screen" },
     opts.disconnected
-      ? h("div", { class: "result-banner warn" }, "通信が切断されました(参考記録)")
+      ? h(
+          "div",
+          { class: "result-banner warn" },
+          icon("warning", "xl"),
+          h("div", null, "通信が切断されました(参考記録)"),
+        )
       : h(
           "div",
           { class: "result-banner" },
-          h("div", { class: "mvp-label" }, "🏆 今期のMVP情シス"),
+          icon("emoji_events", "xl"),
+          h("div", { class: "mvp-label" }, "今期のMVP情シス"),
           h("div", { class: "mvp-name" }, tops.length > 1 ? `${mvpNames}(合同MVP)` : mvpNames),
         ),
     h("div", { class: "result-list" }, rows),

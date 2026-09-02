@@ -43,6 +43,18 @@ function appendChildren(el: HTMLElement, children: Child[]): void {
   }
 }
 
+/**
+ * Material Symbolsのアイコン。フォントが読めていない間はCSS側で不可視にし、
+ * リガチャ名(“person”等)が文字として露出しないようにしている。
+ */
+export function icon(name: string, size?: "lg" | "xl"): HTMLElement {
+  return h(
+    "span",
+    { class: `msym${size ? ` msym-${size}` : ""}`, "aria-hidden": "true" },
+    name,
+  );
+}
+
 let toastBox: HTMLElement | null = null;
 
 // ---- カットイン(手番・イベント通知) ----
@@ -119,11 +131,11 @@ export function openSheet(
   opts: { dismissible?: boolean } = {},
 ): { close: () => void } {
   const dismissible = opts.dismissible !== false;
-  const sheet = h("div", { class: "sheet" }, content);
+  const sheet = h("div", { class: "sheet" }, h("div", { class: "drag-handle" }), content);
   const backdrop = h("div", { class: "sheet-backdrop" }, sheet);
   const close = () => {
     backdrop.classList.remove("show");
-    setTimeout(() => backdrop.remove(), 200);
+    setTimeout(() => backdrop.remove(), 300);
   };
   if (dismissible) {
     backdrop.addEventListener("click", (e) => {
